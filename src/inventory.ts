@@ -1,11 +1,4 @@
-import {
-  addDoc,
-  collection,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-} from 'firebase/firestore';
+import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 
 export type Component = {
@@ -22,10 +15,7 @@ export type NewComponent = Omit<Component, 'id'>;
 const componentsRef = collection(db, 'components');
 
 // Streams the components collection, sorted by name, and returns the unsubscribe function.
-export function watchComponents(
-  onData: (items: Component[]) => void,
-  onError: (e: Error) => void,
-) {
+export function watchComponents(onData: (items: Component[]) => void, onError: (e: Error) => void) {
   return onSnapshot(
     query(componentsRef, orderBy('name')),
     (snap) =>

@@ -237,7 +237,7 @@ function RejectForm({ user, request, onClose }: { user: User; request: Component
   );
 }
 
-function RequestCard({
+export function RequestCard({
   user,
   request,
   components,

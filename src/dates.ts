@@ -9,5 +9,14 @@ export function checkDate(d: string, min?: string) {
   return '';
 }
 
+// Heading for a day's group: "Today", "Yesterday", or the formatted date.
+export function dayLabel(d: string) {
+  if (d === today()) return 'Today';
+  const y = new Date();
+  y.setDate(y.getDate() - 1);
+  if (d === y.toLocaleDateString('en-CA')) return 'Yesterday';
+  return formatDate(d) || 'No date';
+}
+
 export const formatDate = (d: string) =>
   d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';

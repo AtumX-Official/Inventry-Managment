@@ -3,7 +3,7 @@ import type { User } from 'firebase/auth';
 import { Plus, RotateCcw, Search, Truck, X } from 'lucide-react';
 import type { Component } from './inventory';
 import { createDelivery, returnItems, statusOf, watchDeliveries, type Delivery, type Status } from './deliveries';
-import { checkDate, formatDate, today } from './dates';
+import { checkDate, dayLabel, formatDate, today } from './dates';
 import { ItemPicker, Modal } from './ui';
 import { checkLines, emptyLine, field, fieldBase, nameOf, type Line } from './lines';
 
@@ -268,6 +268,39 @@ function DeliveryCard({ user, delivery }: { user: User; delivery: Delivery }) {
   );
 }
 
+// Deliveries grouped by delivery date, newest day first, so today's deliveries sit on top.
+export function DeliveryList({ user, deliveries }: { user: User; deliveries: Delivery[] }) {
+  const groups = new Map<string, Delivery[]>();
+  // Stable sort keeps the newest-recorded delivery first within a day.
+  for (const d of [...deliveries].sort((a, b) => b.date.localeCompare(a.date))) {
+    groups.set(d.date, [...(groups.get(d.date) ?? []), d]);
+  }
+
+  return (
+    <div className="space-y-8">
+      {[...groups].map(([date, list]) => (
+        <section key={date}>
+          <h3 className="mb-3 flex items-center gap-3 text-sm font-semibold text-ink-900">
+            <span className={date === today() ? 'rounded-full bg-brand-500 px-3 py-1 text-white' : ''}>
+              {dayLabel(date)}
+            </span>
+            {date === today() && <span className="font-normal text-ink-500">{formatDate(date)}</span>}
+            <span className="h-px flex-1 bg-ink-200" />
+            <span className="text-xs font-normal text-ink-500">
+              {list.length} {list.length === 1 ? 'delivery' : 'deliveries'}
+            </span>
+          </h3>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {list.map((d) => (
+              <DeliveryCard key={d.id} user={user} delivery={d} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 export default function Deliveries({ user, components }: { user: User; components: Component[] }) {
   const [deliveries, setDeliveries] = useState<Delivery[] | null>(null);
   const [error, setError] = useState('');
@@ -341,11 +374,7 @@ export default function Deliveries({ user, components }: { user: User; component
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {shown.map((d) => (
-            <DeliveryCard key={d.id} user={user} delivery={d} />
-          ))}
-        </div>
+        <DeliveryList user={user} deliveries={shown} />
       )}
     </>
   );

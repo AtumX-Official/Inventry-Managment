@@ -1,16 +1,18 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { signOut, type User } from 'firebase/auth';
-import { ClipboardList, LogOut, Package, Plus, Search, Truck, X } from 'lucide-react';
+import { ClipboardList, LogOut, Package, Plus, Search, Truck, UserCog, Users, X } from 'lucide-react';
 import { auth } from './firebase';
 import { addComponent, watchComponents, type Component, type NewComponent } from './inventory';
 import { checkDate, formatDate, today } from './dates';
 import Deliveries from './DeliveriesPage';
 import RequestsPage from './RequestsPage';
+import TrackerPage from './TrackerPage';
+import UsersPage from './UsersPage';
 import { isAdmin } from './roles';
 
 const emptyForm = (): NewComponent => ({ name: '', category: '', quantity: 0, date: today(), givenBy: '' });
 
-type View = 'components' | 'requests' | 'delivery';
+type View = 'components' | 'requests' | 'delivery' | 'tracker' | 'users';
 
 // The admin manages stock, requests and deliveries; everyone else can browse stock and request it.
 const viewsFor = (admin: boolean) =>
@@ -19,6 +21,8 @@ const viewsFor = (admin: boolean) =>
         { key: 'components' as View, label: 'Components', desc: 'Stock list', icon: Package },
         { key: 'requests' as View, label: 'Requests', desc: 'Approve & deliver', icon: ClipboardList },
         { key: 'delivery' as View, label: 'Delivery', desc: 'Give & return items', icon: Truck },
+        { key: 'tracker' as View, label: 'Tracker', desc: 'Members overview', icon: Users },
+        { key: 'users' as View, label: 'Users', desc: 'Login accounts', icon: UserCog },
       ]
     : [
         { key: 'components' as View, label: 'Components', desc: 'Stock list', icon: Package },
@@ -176,7 +180,7 @@ export default function Home({ user }: { user: User }) {
         </h1>
 
         <nav
-          className={`mt-6 grid gap-3 sm:mt-8 sm:gap-4 ${admin ? 'grid-cols-3 sm:max-w-3xl' : 'grid-cols-2 sm:max-w-xl'}`}
+          className={`mt-6 grid gap-3 sm:mt-8 sm:gap-4 ${admin ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5' : 'grid-cols-2 sm:max-w-xl'}`}
         >
           {views.map(({ key, label, desc, icon: Icon }) => (
             <button
@@ -203,7 +207,11 @@ export default function Home({ user }: { user: User }) {
           ))}
         </nav>
 
-        {view === 'delivery' && admin ? (
+        {view === 'users' && admin ? (
+          <UsersPage />
+        ) : view === 'tracker' && admin ? (
+          <TrackerPage user={user} components={items ?? []} />
+        ) : view === 'delivery' && admin ? (
           <Deliveries user={user} components={items ?? []} />
         ) : view === 'requests' ? (
           <RequestsPage user={user} components={items ?? []} admin={admin} />

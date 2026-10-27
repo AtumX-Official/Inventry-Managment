@@ -27,6 +27,8 @@ export type ReturnEntry = {
 
 export type Delivery = {
   id: string;
+  // Set when the delivery fulfilled a member's request; empty for manual deliveries.
+  userId: string;
   givenTo: string;
   date: string;
   deliveredBy: string;
@@ -54,6 +56,7 @@ function watch(q: Query, onData: (items: Delivery[]) => void, onError: (e: Error
           const data = d.data();
           return {
             id: d.id,
+            userId: data.userId ?? '',
             givenTo: data.givenTo ?? '',
             date: data.date ?? '',
             deliveredBy: data.deliveredBy ?? '',

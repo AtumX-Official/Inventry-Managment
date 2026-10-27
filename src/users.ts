@@ -1,4 +1,4 @@
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { getAdditionalUserInfo, type UserCredential } from 'firebase/auth';
 import { db } from './firebase';
 
@@ -36,5 +36,45 @@ export async function saveUser(cred: UserCredential) {
       ...(existing.exists() ? {} : { createdAt: serverTimestamp() }),
     },
     { merge: true },
+  );
+}
+
+export type Member = {
+  uid: string;
+  name: string;
+  email: string;
+  photoURL: string;
+  lastLoginAt: Date | null;
+  firstLoginAt: Date | null;
+  emailVerified: boolean;
+  phoneNumber: string;
+  // Browser user agent and language from the most recent login.
+  userAgent: string;
+  language: string;
+};
+
+// Streams everyone who has signed in (admin only, per the Firestore rules).
+export function watchUsers(onData: (items: Member[]) => void, onError: (e: Error) => void) {
+  return onSnapshot(
+    collection(db, 'users'),
+    (snap) =>
+      onData(
+        snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            uid: d.id,
+            name: data.displayName ?? data.email ?? 'Unknown',
+            email: data.email ?? '',
+            photoURL: data.photoURL ?? '',
+            lastLoginAt: data.lastLoginAt?.toDate() ?? null,
+            firstLoginAt: data.createdAt?.toDate() ?? null,
+            emailVerified: Boolean(data.emailVerified),
+            phoneNumber: data.phoneNumber ?? '',
+            userAgent: data.userAgent ?? '',
+            language: data.language ?? '',
+          };
+        }),
+      ),
+    onError,
   );
 }
