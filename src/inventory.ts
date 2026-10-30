@@ -1,4 +1,4 @@
-import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
 export type Component = {
@@ -38,4 +38,8 @@ export function watchComponents(onData: (items: Component[]) => void, onError: (
 
 export function addComponent(item: NewComponent, uid: string) {
   return addDoc(componentsRef, { ...item, createdBy: uid, createdAt: serverTimestamp() });
+}
+
+export function updateComponent(id: string, item: NewComponent, uid: string) {
+  return updateDoc(doc(componentsRef, id), { ...item, updatedBy: uid, updatedAt: serverTimestamp() });
 }

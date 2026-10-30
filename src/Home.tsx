@@ -1,14 +1,16 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { signOut, type User } from 'firebase/auth';
-import { ClipboardList, LogOut, Package, Plus, Search, Truck, UserCog, Users, X } from 'lucide-react';
+import { ClipboardList, LogOut, Package, Pencil, Plus, Search, Truck, UserCog, Users, X } from 'lucide-react';
 import { auth } from './firebase';
-import { addComponent, watchComponents, type Component, type NewComponent } from './inventory';
+import { addComponent, updateComponent, watchComponents, type Component, type NewComponent } from './inventory';
 import { checkDate, formatDate, today } from './dates';
 import Deliveries from './DeliveriesPage';
 import RequestsPage from './RequestsPage';
 import TrackerPage from './TrackerPage';
 import UsersPage from './UsersPage';
 import { isAdmin } from './roles';
+import { Modal } from './ui';
+import { field } from './lines';
 
 const emptyForm = (): NewComponent => ({ name: '', category: '', quantity: 0, date: today(), givenBy: '' });
 
@@ -29,20 +31,32 @@ const viewsFor = (admin: boolean) =>
         { key: 'requests' as View, label: 'Request', desc: 'Ask for components', icon: ClipboardList },
       ];
 
-function AddComponentForm({ uid, onClose }: { uid: string; onClose: () => void }) {
-  const [form, setForm] = useState<NewComponent>(emptyForm);
+// Add/edit form for a component. Inline (under the list header) when adding, stacked in a popup when editing.
+function ComponentForm({
+  initial,
+  onSave,
+  onClose,
+  inline = false,
+}: {
+  initial: NewComponent;
+  onSave: (item: NewComponent) => Promise<unknown>;
+  onClose: () => void;
+  inline?: boolean;
+}) {
+  const [form, setForm] = useState<NewComponent>(initial);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) return;
+    if (!form.name.trim()) return setError('Enter a name.');
+    if (!Number.isInteger(form.quantity) || form.quantity < 0) return setError('Quantity must be 0 or more.');
     const badDate = checkDate(form.date);
     if (badDate) return setError(badDate);
     setSaving(true);
     setError('');
     try {
-      await addComponent({ ...form, name: form.name.trim(), givenBy: form.givenBy.trim() }, uid);
+      await onSave({ ...form, name: form.name.trim(), category: form.category.trim(), givenBy: form.givenBy.trim() });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save');
@@ -50,12 +64,12 @@ function AddComponentForm({ uid, onClose }: { uid: string; onClose: () => void }
     }
   };
 
-  const field =
-    'w-full rounded-xl border border-ink-200 bg-ink-50 px-3 py-2 text-sm text-ink-900 outline-none focus:border-brand-500';
+  // Column spans only apply in the inline 6-column layout; in the popup every field takes a full row.
+  const span = (n: 2 | 6) => (inline ? (n === 2 ? 'sm:col-span-2' : 'sm:col-span-6') : '');
 
   return (
-    <form onSubmit={submit} className="card mb-6 grid gap-3 sm:grid-cols-6 sm:items-end">
-      <label className="text-xs text-ink-600 sm:col-span-2">
+    <form onSubmit={submit} className={inline ? 'card mb-6 grid gap-3 sm:grid-cols-6 sm:items-end' : 'grid gap-3'}>
+      <label className={`text-xs text-ink-600 ${span(2)}`}>
         Name
         <input
           autoFocus
@@ -105,15 +119,15 @@ function AddComponentForm({ uid, onClose }: { uid: string; onClose: () => void }
           placeholder="Name"
         />
       </label>
-      <div className="flex gap-2 sm:col-span-6 sm:justify-end">
+      {error && <p className={`text-sm text-red-600 ${span(6)}`}>{error}</p>}
+      <div className={`flex justify-end gap-2 pt-1 ${span(6)}`}>
         <button type="button" onClick={onClose} className="btn-ghost">
           Cancel
         </button>
         <button type="submit" disabled={saving} className="btn-primary disabled:opacity-60">
-          {saving ? 'Saving…' : 'Save component'}
+          {saving ? 'Saving…' : inline ? 'Save component' : 'Save changes'}
         </button>
       </div>
-      {error && <p className="text-sm text-red-600 sm:col-span-6">{error}</p>}
     </form>
   );
 }
@@ -123,6 +137,8 @@ export default function Home({ user }: { user: User }) {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<Component | null>(null);
+  const closeEdit = useCallback(() => setEditing(null), []);
   const [view, setView] = useState<View>('components');
   const admin = isAdmin(user);
   const views = viewsFor(admin);
@@ -248,7 +264,30 @@ export default function Home({ user }: { user: User }) {
               </div>
             </div>
 
-            {admin && adding && <AddComponentForm uid={user.uid} onClose={() => setAdding(false)} />}
+            {admin && adding && (
+              <ComponentForm
+                inline
+                initial={emptyForm()}
+                onSave={(item) => addComponent(item, user.uid)}
+                onClose={() => setAdding(false)}
+              />
+            )}
+
+            {admin && editing && (
+              <Modal title="Edit component" subtitle={editing.name} onClose={closeEdit}>
+                <ComponentForm
+                  initial={{
+                    name: editing.name,
+                    category: editing.category,
+                    quantity: editing.quantity,
+                    date: editing.date || today(),
+                    givenBy: editing.givenBy,
+                  }}
+                  onSave={(item) => updateComponent(editing.id, item, user.uid)}
+                  onClose={closeEdit}
+                />
+              </Modal>
+            )}
 
             {error ? (
               <p className="card text-sm text-red-600">Could not load components: {error}</p>
@@ -277,6 +316,9 @@ export default function Home({ user }: { user: User }) {
                         <>
                           <th className="px-4 py-3 font-medium">Date</th>
                           <th className="px-4 py-3 font-medium">Given By</th>
+                          <th className="w-12 px-4 py-3">
+                            <span className="sr-only">Edit</span>
+                          </th>
                         </>
                       )}
                     </tr>
@@ -295,6 +337,16 @@ export default function Home({ user }: { user: User }) {
                           <>
                             <td className="whitespace-nowrap px-4 py-3 text-ink-600">{formatDate(c.date) || '—'}</td>
                             <td className="px-4 py-3 text-ink-600">{c.givenBy || '—'}</td>
+                            <td className="px-2 py-2 text-right">
+                              <button
+                                onClick={() => setEditing(c)}
+                                className="grid h-9 w-9 place-items-center rounded-lg text-ink-500 hover:bg-brand-100 hover:text-brand-700"
+                                aria-label={`Edit ${c.name}`}
+                                title="Edit"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                            </td>
                           </>
                         )}
                       </tr>
